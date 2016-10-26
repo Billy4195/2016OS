@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 void push_arg_list(char ***arg_list, unsigned int *capacity, unsigned int *filled, char *token){
         char ** tmp_list;
@@ -57,12 +58,14 @@ int check_bg_proc_list(int *bg_pid_list, int *filled, char block){
                         }
                 }
         }
-        //need free list
 }
 int main(int argc, char ** argv){
         int i;
         char input[2048];
+        char *re_out;
+        char *re_in;
         char *token;
+        char *arg;
         char **arg_list;
         int pid;
         int *bg_pid_list=NULL;
@@ -70,6 +73,7 @@ int main(int argc, char ** argv){
         int list_filled;
         unsigned int capacity,filled;
         char background;
+        int in,out;
         list_len = allocate_bg_proc_list(&bg_pid_list,0);
         list_filled = 0;
         printf("> ");
@@ -77,8 +81,17 @@ int main(int argc, char ** argv){
                 background = 0;
                 capacity = 10;
                 filled = 0;
+                re_out = re_in = NULL;
                 arg_list = calloc(capacity, sizeof(char*));
-                token = strtok(input," \n");
+                if( (arg = strtok(input,">")) != NULL){
+                        re_out = strtok(NULL," \n");
+                }else if( (arg = strtok(input,"<")) != NULL){
+                        re_in = strtok(NULL," \n");
+                }
+                if(!arg){
+                        arg = input;
+                }
+                token = strtok(arg," \n");
                 push_arg_list(&arg_list, &capacity, &filled, token);
                 while( (token = strtok(NULL," \n")) != NULL){
                         push_arg_list(&arg_list, &capacity, &filled, token);
@@ -93,6 +106,14 @@ int main(int argc, char ** argv){
                 }
                 switch(pid = fork()){
                         case 0:
+                                if(re_out){
+                                        out = open(re_out,O_WRONLY|O_CREAT,0644);
+                                        dup2(out,STDOUT_FILENO);
+                                }
+                                if(re_in){
+                                        in = open(re_in,O_RDONLY);
+                                        dup2(in,STDIN_FILENO);
+                                }
                                 exit(execvp(arg_list[0],arg_list));
                                 
                         case -1:

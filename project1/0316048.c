@@ -21,7 +21,6 @@ int main(int argc, char ** argv){
         char input[2048];
         char *token;
         char **arg_list;
-        char file[257];
         int pid;
         unsigned int capacity,filled;
         printf("> ");
@@ -37,17 +36,9 @@ int main(int argc, char ** argv){
                 for(i=0;i<filled;i++){                  //print arg_list
                         printf("arg %d : %s\n",i,arg_list[i]);
                 }
-                if(strstr(arg_list[0],"/") != NULL){
-                        strcpy(file, arg_list[0]);
-
-                }else{
-                        sprintf(file,"/bin/%s",arg_list[0]);
-                }
-                printf("FILE %s\n",file);
                 switch(pid = fork()){
                         case 0:
-                                exit(execvp(file,arg_list));
-                                
+                                exit(execvp(arg_list[0],arg_list));
                         case -1:
                                 printf("ERROR occurred when fork child process\n");
                                 break;
@@ -57,6 +48,7 @@ int main(int argc, char ** argv){
                 free(arg_list);
                 printf("> ");
         }
+        printf("\n");
         return 0;
 }
 

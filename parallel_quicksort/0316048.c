@@ -1,68 +1,151 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <string.h>
+#include <unistd.h>
 
-void quicksort(int *,int,int,int);
+void quicksort(int *,int,int,int,int);
 void sort(int *,int,int);
 void print_vector(int*,int);
+void* thread_fn(void *);
+
+typedef struct param{
+        int *numbers;
+        int begin;
+        int end;
+        int depth;
+        int thd_idx;
+}param;
+
+
+pthread_t *threads;
+param arg[15];
+sem_t sema[15];
 
 int main(){
         FILE *ifp,*ofp;
         char ifile[256];
         int input_num;
-        int *numbers;
+        int *numbers,*numbers2;
         int i,tmp;
-
+        clock_t start_clk,end_clk;
+        if( (threads = (pthread_t *) malloc( sizeof(pthread_t) * 15) ) == 
+                NULL){
+                perror("malloc thread failed\n");
+        }
+        for(i=0;i<15;i++){
+                sem_init(&sema[i],0,0);
+        }
         printf("Input file name: ");
         scanf("%s",ifile);
-        ifp = fopen(ifile,"r"); 
+        if( (ifp = fopen(ifile,"r")) == NULL ){
+                perror("input file open failed\n");
+        }
         fscanf(ifp,"%d",&input_num);
         printf("input num :%d\n",input_num);
         if( (numbers = malloc(sizeof(int) * input_num ) ) == NULL){
-                printf("malloc failed\n");
+                perror("malloc failed\n");
+        }
+        if( (numbers2 = malloc(sizeof(int) * input_num ) ) == NULL){
+                perror("malloc failed\n");
         }
         for(i=0;i<input_num;i++){
                 fscanf(ifp,"%d",&tmp);         
                 numbers[i] = tmp;
         }
         fclose(ifp);
+        memcpy(numbers2,numbers,sizeof(int) * input_num );
+/***             init finished             ***/
+        //print_vector(numbers,input_num); 
+//        start_clk = clock();
+//        printf("start clk %ld\n",start_clk);
+//        quicksort(numbers,0,input_num,1,-1);
+//        end_clk = clock();
+//        printf("end clk %ld\n",end_clk);
+//        printf("Single-thread elapsed : %lf s\n",(double)(end_clk-start_clk) / CLOCKS_PER_SEC);
 
-        quicksort(numbers,0,input_num,1);
+        for(i=0;i<15;i++){
+                pthread_create(&threads[i],NULL,thread_fn,(void*)(long)i);
+        }
+        start_clk = clock();
+        arg[0].numbers = numbers2;
+        arg[0].begin = 0;
+        arg[0].end = input_num;
+        arg[0].depth = 1;
+        arg[0].thd_idx = 1;
+        sem_post(&sema[0]);
+        printf("start clk %ld\n",start_clk);
+        for(i=7;i<15;i++){
+                sem_wait(&sema[i]);
+        }
+        end_clk = clock();
+        printf("end clk %ld\n",end_clk);
+        printf("Multi-thread elapsed : %lf s\n",(double)(end_clk-start_clk) / CLOCKS_PER_SEC);
+        //print_vector(numbers,input_num);
+        //print_vector(numbers2,input_num);
         ofp = fopen("output1.txt","w");
         for(i=0;i<input_num-1;i++){
                 fprintf(ofp,"%d ",numbers[i]);
         }
         fprintf(ofp,"%d\n",numbers[input_num-1]);
         fclose(ofp);
-
+        ofp = fopen("output2.txt","w");
+        for(i=0;i<input_num-1;i++){
+                fprintf(ofp,"%d ",numbers2[i]);
+        }
+        fprintf(ofp,"%d\n",numbers2[input_num-1]);
+        fclose(ofp);
+        free(threads);
         free(numbers);
-
         return 0;
 }
 
-void quicksort(int *numbers,int begin,int end,int depth){
+void quicksort(int *numbers,int begin,int end,int depth,int thd_idx){
         int pivot_ptr,cur_ptr;
         int tmp;
         int i;
         if(depth < 4){  //divide 
-                if(begin != end){
                 pivot_ptr = begin;
-                        for(cur_ptr= begin+1;cur_ptr < end;cur_ptr++){
-                                if(numbers[cur_ptr] < numbers[pivot_ptr]){
-                                        tmp = numbers[cur_ptr];
-                                        for(i=cur_ptr;i > pivot_ptr;i--){
-                                                numbers[i] = numbers[i-1];
-                                        }
-                                        numbers[pivot_ptr] = tmp;
-                                        pivot_ptr++;
+                for(cur_ptr= begin+1;cur_ptr < end;cur_ptr++){
+                        if(numbers[cur_ptr] < numbers[pivot_ptr]){
+                                tmp = numbers[cur_ptr];
+                                for(i=cur_ptr;i > pivot_ptr;i--){
+                                        numbers[i] = numbers[i-1];
                                 }
+                                numbers[pivot_ptr] = tmp;
+                                pivot_ptr++;
                         }
-                        quicksort(numbers,begin,pivot_ptr,depth+1);
-                        quicksort(numbers,pivot_ptr+1,end,depth+1);
+                }
+                if(thd_idx < 0){ //serial version
+                        quicksort(numbers,begin,pivot_ptr,depth+1
+                            ,thd_idx);
+                        quicksort(numbers,pivot_ptr+1,end,depth+1
+                            ,thd_idx);
+                }else{
+                        printf("%d -> %d\n",thd_idx,thd_idx*2);
+                        printf("%d -> %d\n",thd_idx,thd_idx*2+1);
+                        arg[thd_idx*2-1].numbers = numbers;
+                        arg[thd_idx*2-1].begin = begin;
+                        arg[thd_idx*2-1].end = pivot_ptr;
+                        arg[thd_idx*2-1].depth = depth + 1;
+                        arg[thd_idx*2-1].thd_idx = thd_idx*2;
+                        printf("signal sema%d\n",thd_idx*2-1);
+                        sem_post(&sema[thd_idx*2-1]);
+                        arg[thd_idx*2].numbers = numbers;
+                        arg[thd_idx*2].begin = pivot_ptr+1;
+                        arg[thd_idx*2].end = end;
+                        arg[thd_idx*2].depth = depth+1;
+                        arg[thd_idx*2].thd_idx = thd_idx*2+1;
+                        printf("signal sema%d\n",thd_idx*2);
+                        sem_post(&sema[thd_idx*2]);
                 }
         }else{          //sort
                 sort(numbers,begin,end);
+                if(thd_idx !=-1){
+                        sem_post(&sema[thd_idx-1]);
+                }
         }
 }
 void sort(int *numbers,int begin,int end){
@@ -85,4 +168,21 @@ void print_vector(int *numbers,int input_num){
         for(i=0;i<input_num;i++){
                 printf("%d ",numbers[i]);
         }printf("\n");
+}
+void* thread_fn(void *para){
+        long thd_idx = (long)para;
+        int ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(thd_idx%ncpu,&cpuset);
+        if( pthread_setaffinity_np(pthread_self(),sizeof(cpu_set_t),&cpuset)){
+                perror("set affinity error\n");
+        }
+        sem_wait(&sema[thd_idx]);
+        printf("idx waited %ld\n",thd_idx);
+        int *numbers= arg[thd_idx].numbers;
+        int begin = arg[thd_idx].begin;
+        int end = arg[thd_idx].end;
+        int depth = arg[thd_idx].depth;
+        quicksort(numbers,begin,end,depth,thd_idx+1);
 }

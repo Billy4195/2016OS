@@ -15,4 +15,3 @@ then
 else
   echo "MT success"
 fi
-

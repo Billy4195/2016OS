@@ -7,7 +7,6 @@
 #include <unistd.h>
 
 void quicksort(int *,int,int,int,int);
-void sort(int *,int,int);
 void print_vector(int*,int);
 void* thread_fn(void *);
 
@@ -64,7 +63,7 @@ int main(){
         memcpy(numbers2,numbers,sizeof(int) * input_num );
 /***             init finished             ***/
         start_clk = clock();
-        sort(numbers,0,input_num);
+        quicksort(numbers,0,input_num,4,-1);
         end_clk = clock();
         printf("Single-thread elapsed : %lf s\n",(double)(end_clk-start_clk) / CLOCKS_PER_SEC);
 
@@ -134,22 +133,20 @@ void quicksort(int *numbers,int begin,int end,int depth,int thd_idx){
                         sem_post(&sema[thd_idx*2]);
                 }
         }else{          //sort
-                sort(numbers,begin,end);
-                sem_post(&s_);
-        }
-}
-void sort(int *numbers,int begin,int end){
-        int i,j;
-        int len = end - begin;
-        int tmp;
-        for(i=0;i<len;i++){
-                for(j=begin;j<begin+len-1-i;j++){
-                        if(numbers[j] > numbers[j+1]){
-                                tmp = numbers[j];
-                                numbers[j] = numbers[j+1];
-                                numbers[j+1] = tmp;
+                int i,j;
+                int len = end - begin;
+                int tmp;
+                for(i=0;i<len;i++){
+                        for(j=begin;j<begin+len-1-i;j++){
+                                if(numbers[j] > numbers[j+1]){
+                                        tmp = numbers[j];
+                                        numbers[j] = numbers[j+1];
+                                        numbers[j+1] = tmp;
+                                }
                         }
                 }
+                if(thd_idx != -1)
+                        sem_post(&s_);
         }
 }
 

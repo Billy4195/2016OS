@@ -92,27 +92,35 @@ int main(){
 }
 
 void quicksort(int *numbers,int begin,int end,int depth,int thd_idx){
-        int pivot_ptr,cur_ptr;
-        int tmp;
-        int i;
         if(depth < 4){  //divide 
-                pivot_ptr = begin;
-                for(cur_ptr= begin+1;cur_ptr < end;cur_ptr++){
-                        if(numbers[cur_ptr] < numbers[pivot_ptr]){
-                                tmp = numbers[cur_ptr];
-                                for(i=cur_ptr;i > pivot_ptr;i--){
-                                        numbers[i] = numbers[i-1];
-                                }
-                                numbers[pivot_ptr] = tmp;
-                                pivot_ptr++;
+                int sum=0;
+                int count=0;
+                int pivot;
+                int store_index;
+                for(int i=0;i<50 && begin+i<end;i++){
+                        count++;
+                        sum += numbers[begin+i];
+                }
+                pivot = sum / count;
+
+//                printf("sum %d count %d pivot %d\n",sum,count,pivot);
+                store_index = begin;
+                for(int i=begin;i<end;i++){
+                        if(numbers[i] < pivot){
+                                int tmp;
+                                tmp = numbers[i];
+                                numbers[i] = numbers[store_index];
+                                numbers[store_index] = numbers[i];
+                                store_index++;
                         }
                 }
+
                 sem_wait(&wait_lock);
-                waiting_queue.push(param(numbers,begin,pivot_ptr,depth+1,thd_idx*2));           //race
-                waiting_queue.push(param(numbers,pivot_ptr+1,end,depth+1,thd_idx*2+1));         //race
+                waiting_queue.push(param(numbers,begin,store_index,depth+1,thd_idx*2));           //race
+                waiting_queue.push(param(numbers,store_index,end,depth+1,thd_idx*2+1));         //race
                 sem_post(&wait_lock);
         }else{          //sort
-                printf("%d %d\n",begin,end);
+//                printf("%d %d\n",begin,end);
                 int i,j;
                 int len = end - begin;
                 int tmp;

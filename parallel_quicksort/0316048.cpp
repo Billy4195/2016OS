@@ -4,6 +4,7 @@
 #include <semaphore.h>
 #include <unistd.h>
 #include <queue>
+#include <assert.h>
 
 #define IFILE "input.txt"
 
@@ -22,7 +23,7 @@ typedef struct param{
         int end;
         int depth;
         int thd_idx;
-        param(int *n,int b,int e,int d,int t):numbers(n),begin(b),end(e),depth(d),thd_idx(t){
+        param(int *n,int b,int e,int d):numbers(n),begin(b),end(e),depth(d){
         
         }
 }param;
@@ -30,7 +31,8 @@ typedef struct param{
 
 sem_t sema[8];
 sem_t idle_worker;
-sem_t wait_lock,task_lock,ref_lock;
+sem_t wait_lock,task,ref_lock;
+sem_t ret;
 char bit_map;
 int ref=0;
 queue<param> waiting_queue,task_queue;
@@ -47,42 +49,43 @@ int main(){
                 sem_init(&sema[i],0,0);
         }
         worker_limit = 0;
-        sem_init(&task_lock,0,1);
+        sem_init(&task,0,0);
         sem_init(&wait_lock,0,1);
         sem_init(&ref_lock,0,1);
         bit_map=0x0;
         
         while(worker_limit < 8){
+                int count=0;
                 worker_limit++;
                 input_num = read_input_file(&numbers);
                 sem_init(&idle_worker,0,worker_limit); //worker limit = 1;
                 start_clk = clock();
-                waiting_queue.push(param(numbers,0,input_num,1,1));
-                while(!waiting_queue.empty() || ref){
-                        if(!waiting_queue.empty()){
-                                sem_wait(&idle_worker);
-                                
-                                sem_wait(&wait_lock);
-                                sem_wait(&task_lock);
-                                sem_wait(&ref_lock);
-                                task_queue.push(waiting_queue.front());  //race
-                                waiting_queue.pop();                    //race
-                                ref++; //race
-                                sem_post(&wait_lock);
-                                sem_post(&task_lock);
-                                sem_post(&ref_lock);
-
-                                sem_wait(&ref_lock); 
-                                worker_idx = select_worker();
-                                if(worker_idx != -1){
-                                        sem_post(&sema[worker_idx]);
-                                }else{
-                                        printf("error no available worker");
+                waiting_queue.push(param(numbers,0,input_num,1));
+                sem_post(&task);
+                while(1){
+                        if(count <15){
+                                sem_wait(&task);
+                        }else{
+                                for(int i=0;i<8;i++){
+                                        sem_wait(&ret);
                                 }
-                                bit_map |= 1 << worker_idx;
-                                sem_post(&ref_lock);
+                                break;
                         }
+                        sem_wait(&idle_worker);
+
+                        sem_wait(&ref_lock); 
+                        worker_idx = select_worker();
+                        if(worker_idx != -1){
+                                sem_post(&sema[worker_idx]);
+                                count++;
+                        }else{
+                                printf("error no available worker");
+                        }
+                        bit_map |= 1 << worker_idx;
+                        sem_post(&ref_lock);
                 }
+                assert(waiting_queue.empty());
+        
                 end_clk = clock();
                 printf("%d threads sorting elapsed time : %lf s\n",worker_limit,(double)(end_clk-start_clk)/CLOCKS_PER_SEC);
                 write_to_file(numbers,input_num,worker_limit);
@@ -91,7 +94,7 @@ int main(){
         return 0;
 }
 
-void quicksort(int *numbers,int begin,int end,int depth,int thd_idx){
+void quicksort(int *numbers,int begin,int end,int depth){
         if(depth < 4){  //divide 
                 int sum=0;
                 int count=0;
@@ -101,24 +104,30 @@ void quicksort(int *numbers,int begin,int end,int depth,int thd_idx){
                         count++;
                         sum += numbers[begin+i];
                 }
-                pivot = sum / count;
+                if(begin != end)
+                        pivot = sum / count;
 
-//                printf("sum %d count %d pivot %d\n",sum,count,pivot);
                 store_index = begin;
                 for(int i=begin;i<end;i++){
                         if(numbers[i] < pivot){
                                 int tmp;
                                 tmp = numbers[i];
                                 numbers[i] = numbers[store_index];
-                                numbers[store_index] = numbers[i];
+                                numbers[store_index] = tmp;
                                 store_index++;
                         }
                 }
 
                 sem_wait(&wait_lock);
-                waiting_queue.push(param(numbers,begin,store_index,depth+1,thd_idx*2));           //race
-                waiting_queue.push(param(numbers,store_index,end,depth+1,thd_idx*2+1));         //race
+                waiting_queue.push(param(numbers,begin,store_index,depth+1));           //race
+                sem_post(&task);
                 sem_post(&wait_lock);
+
+                sem_wait(&wait_lock);
+                waiting_queue.push(param(numbers,store_index,end,depth+1));         //race
+                sem_post(&task);
+                sem_post(&wait_lock);
+
         }else{          //sort
 //                printf("%d %d\n",begin,end);
                 int i,j;
@@ -133,6 +142,7 @@ void quicksort(int *numbers,int begin,int end,int depth,int thd_idx){
                                 }
                         }
                 }
+                sem_post(&ret);
         }
 }
 
@@ -161,11 +171,11 @@ void* thread_fn(void *para){
         long thd_idx = (long)para;
         while(1){
                 sem_wait(&sema[thd_idx]);
-                sem_wait(&task_lock);
-                param arg = task_queue.front(); //race
-                task_queue.pop();               //race
-                sem_post(&task_lock);
-                quicksort(arg.numbers, arg.begin, arg.end, arg.depth, arg.thd_idx);
+                sem_wait(&wait_lock);
+                param arg = waiting_queue.front(); //race
+                waiting_queue.pop();               //race
+                sem_post(&wait_lock);
+                quicksort(arg.numbers, arg.begin, arg.end, arg.depth);
 
                 sem_wait(&ref_lock);
                 ref--;                          //race

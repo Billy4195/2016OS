@@ -1,7 +1,7 @@
 all: quicksort
 
-quicksort: 0316048.c
-	gcc 0316048.c -o quicksort -lpthread
+quicksort: 0316048.cpp
+	g++ 0316048.cpp -o quicksort -lpthread -g
 
 run:	quicksort
 	bash test.sh

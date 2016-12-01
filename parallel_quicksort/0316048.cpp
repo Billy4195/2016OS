@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <queue>
 #include <assert.h>
+#include <sys/time.h>
 
 #define IFILE "input.txt"
 
@@ -42,8 +43,9 @@ int main(){
         int input_num;
         int *numbers;
         pthread_t threads[8];
-        clock_t start_clk,end_clk;
         int worker_idx,worker_limit;
+        struct timeval start_clk,end_clk;
+        sem_init(&idle_worker,0,1); //worker limit = 1;
         for(long i=0;i<8;i++){
                 pthread_create(&threads[i],NULL,thread_fn,(void*)i);
                 sem_init(&sema[i],0,0);
@@ -58,8 +60,7 @@ int main(){
                 int count=0;
                 worker_limit++;
                 input_num = read_input_file(&numbers);
-                sem_init(&idle_worker,0,worker_limit); //worker limit = 1;
-                start_clk = clock();
+                gettimeofday(&start_clk,0);
                 waiting_queue.push(param(numbers,0,input_num,1));
                 sem_post(&task);
                 while(1){
@@ -86,10 +87,16 @@ int main(){
                 }
                 assert(waiting_queue.empty());
         
-                end_clk = clock();
-                printf("%d threads sorting elapsed time : %lf s\n",worker_limit,(double)(end_clk-start_clk)/CLOCKS_PER_SEC);
+                gettimeofday(&end_clk,0);
+                {
+                int sec,usec;
+                sec = end_clk.tv_sec - start_clk.tv_sec;
+                usec = end_clk.tv_usec - start_clk.tv_usec;
+                printf("%d threads sorting elapsed time : %lf s\n",worker_limit,sec+(usec/1000000.0));
+                }
                 write_to_file(numbers,input_num,worker_limit);
                 delete [] numbers;
+                sem_post(&idle_worker);
         }
         return 0;
 }
@@ -129,7 +136,6 @@ void quicksort(int *numbers,int begin,int end,int depth){
                 sem_post(&wait_lock);
 
         }else{          //sort
-//                printf("%d %d\n",begin,end);
                 int i,j;
                 int len = end - begin;
                 int tmp;

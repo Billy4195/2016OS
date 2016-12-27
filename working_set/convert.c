@@ -58,7 +58,11 @@ int main(){
     int i;
     
     for(i=0;i<65536;i++){
-        Table[i].key[0] = '\0';
+        Table[i].key[0] = '@';
+        Table[i].key[1] = '@';
+        Table[i].key[2] = '@';
+        Table[i].key[3] = '@';
+        Table[i].key[4] = '\0';
         Table[i].start = -1;
         Table[i].end = -1;
     }
@@ -81,9 +85,6 @@ int main(){
 
     while(cur_idx < len){
         strncpy(tmp,(addr+cur_idx*RECORD_SIZE),4);
-        if(cur_idx < 15){
-            printf("%s \n",tmp);
-        }
         if( strcmp(tmp,cur_key) != 0){
             Table[record_idx].end = cur_idx; //old key's end
 
@@ -102,9 +103,6 @@ int main(){
     }
     for(i=0;i<N;i++){
         fprintf(ofile,"%c",addr[i]);
-    }
-    for(i=0;i<25;i++){
-        printf("Key %3d %4s %10d %10d\n",i,Table[i].key,Table[i].start,Table[i].end);
     }
     munmap(addr,N);
     fclose(ofile);

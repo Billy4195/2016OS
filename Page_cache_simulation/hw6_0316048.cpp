@@ -32,7 +32,7 @@ class Memory{
     void set_capacity(int c){
         capacity = c;
     }
-    void use(long addr);
+    int use(long addr);
     struct List_node *find(long addr);
     void update_list(struct List_node *recent_use);
     void new_frame(long addr);
@@ -45,12 +45,14 @@ private:
 };
 
 
-void Memory::use(long addr){
+int Memory::use(long addr){
     struct List_node *recent_use = find(addr);
-    if(recent_use){
+    if(recent_use){ //hit
         update_list(recent_use);
-    }else{
+        return 1;
+    }else{          //miss
         new_frame(addr);        
+        return 0;
     }
 }
 
@@ -69,12 +71,29 @@ struct List_node *Memory::find(long addr){
 }
 
 void Memory::update_list(struct List_node *recent_use){
-
+    switch(policy){
+    case LRU:
+        if(recent_use->prev){
+            recent_use->prev->next = recent_use->next;
+            if(recent_use->next){
+                recent_use->next->prev = recent_use->prev;
+            }else{      //recent use is tail
+                tail = recent_use->prev;
+            }
+            recent_use->prev = NULL;
+            recent_use->next = head;
+            head = recent_use;
+        }
+        break;
+    case FIFO:      //no need to update list
+        break;
+    }
 }
 
 void Memory::new_frame(long addr){
 
 }
+
 int main(){
     fstream fp;
     

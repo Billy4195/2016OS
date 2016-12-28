@@ -148,37 +148,59 @@ void Memory::new_frame(char *addr,struct Tree_node *parent){
 
 void Memory::delete_frame(){
     struct Tree_node *t_node = tail->tree_node;
-    struct Tree_node *successor=NULL;
+    struct Tree_node *replace_node=NULL;
     struct List_node *new_tail = tail->prev;
     delete tail;
-        
     if(t_node->Lchild){
-        successor = t_node->Lchild;
-        while(successor->Rchild != NULL){
-            successor = successor->Rchild;
+        replace_node = t_node->Lchild;
+        while(replace_node->Rchild != NULL){
+            replace_node = replace_node->Rchild;
         }
-        successor->parent->Rchild = successor->Lchild;
+        if(replace_node->Lchild){
+            replace_node->Lchild->parent = replace_node->parent;
+        }
+        if(!replace_node->parent){
+
+        }else if(replace_node->parent->Lchild == replace_node){
+            replace_node->parent->Lchild = replace_node->Lchild;
+        }else{
+            replace_node->parent->Rchild = replace_node->Lchild;
+        }
     }else if(t_node->Rchild){
-        successor = t_node->Rchild;
-        while(successor->Lchild != NULL){
-            successor = successor->Lchild;
+        replace_node = t_node->Rchild;
+        while(replace_node->Lchild != NULL){
+            replace_node = replace_node->Lchild;
         }
-        successor->parent->Lchild = successor->Rchild;
-    }
-    if(successor && successor->Rchild){
-        successor->Rchild->parent = successor->parent;
+        if(replace_node->Rchild){
+            replace_node->Rchild->parent = replace_node->parent;
+        }
+        if(!replace_node->parent){
+            
+        }else if(replace_node->parent->Lchild == replace_node){
+            replace_node->parent->Lchild = replace_node->Rchild;
+        }else{
+            replace_node->parent->Rchild = replace_node->Rchild;
+        }
+    }else{
+//        if(!t_node->parent){
+
+//        }else if(t_node->parent->Lchild == t_node){
+//            t_node->parent->Lchild = NULL;
+//        }else{
+//            t_node->parent->Rchild = NULL;
+//        }
     }
     if(!t_node->parent){
-        root = successor;
-    }else if(t_node->parent->Rchild == t_node){
-        t_node->parent->Rchild = successor;
+
     }else if(t_node->parent->Lchild == t_node){
-        t_node->parent->Lchild = successor;
+        t_node->parent->Lchild = replace_node;
+    }else if(t_node->parent->Rchild == t_node){
+        t_node->parent->Rchild = replace_node;
+    }else{
+//        cout <<"ERROR parent not point to child"<<endl;
+//        cout << "QQQQQ" << (t_node->parent != NULL) <<endl;
     }
-    if(successor){
-        successor->Rchild = t_node->Rchild;
-        successor->Lchild = t_node->Lchild;
-    }
+
     free(t_node->addr);
     delete t_node;
     if(!new_tail){ //empty
@@ -201,7 +223,7 @@ int main(){
     
     while(!fp.eof()){
         fp >> type >> addr; 
-        cout << hit_count << " "<<miss_count <<endl;
+//        cout << hit_count << " "<<miss_count <<endl;
 //        cout << type <<" "<<  addr.substr(0,5) << endl;
         if(mem.use(strndup(addr,5))){
             hit_count++;

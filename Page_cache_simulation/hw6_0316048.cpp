@@ -15,28 +15,21 @@ struct List_node{
     }
     struct List_node *prev;
     struct List_node *next;
-    struct Tree_node *tree_node;
+    struct node *tree_node;
 };
 
-struct Tree_node{
-    Tree_node(char *a){
-        addr = a;
+struct node{
+    node(){
         list_node = NULL;
-        parent = NULL;
-        Rchild = NULL;
-        Lchild = NULL;
     }
     char *addr;
     struct List_node *list_node;
-    struct Tree_node *parent;
-    struct Tree_node *Rchild;
-    struct Tree_node *Lchild;
 };
 
 class Memory{
 public:
     Memory(){
-        root = NULL;
+        table = NULL;
         head = NULL;
         tail = NULL;
         capacity = 0;
@@ -47,52 +40,60 @@ public:
     }
     void set_capacity(int c){
         capacity = c;
+        table = new node[capacity];
     }
     int use(char *addr);
-    struct List_node *find(char *addr,struct Tree_node **parent);
+    struct List_node *find(char *addr);
+    int hash(char *addr);
     void update_list(struct List_node *recent_use);
-    void new_frame(char *addr,struct Tree_node *parent);
+    void new_frame(char *addr);
     void delete_frame();
 private:
     Policy_t policy;
     int capacity;
     int filled;
-    struct Tree_node *root;
+    struct node *table;
     struct List_node *head;
     struct List_node *tail;
 };
 
 
 int Memory::use(char *addr){
-    struct Tree_node *parent;
-    struct List_node *recent_use = find(addr,&parent);
+    struct List_node *recent_use = find(addr);
     if(recent_use){ //hit
         update_list(recent_use);
         free(addr);
         return 1;
     }else{          //miss
-        new_frame(addr,parent);        
+        new_frame(addr);        
         return 0;
     }
 }
 
-struct List_node *Memory::find(char *addr,struct Tree_node **parent){
-    struct Tree_node *cur=root;
-    int ret;
-    *parent = root;
-    while(cur != NULL){
-        ret = strcmp(addr,cur->addr);
-        if(ret == 0){
-            return cur->list_node;
-        }else if(ret < 0){
-            *parent = cur;
-            cur = cur->Lchild;
-        }else{
-            *parent = cur;
-            cur = cur->Rchild;
+struct List_node *Memory::find(char *addr){
+    int key = hash(addr);
+    int cur;
+    if(table[key].list_node && strcmp(table[key].addr,addr) == 0){
+        return table[key].list_node;
+    }
+    cur = (key + 1) % capacity;
+    while(cur != key){
+        if(table[cur].list_node == NULL){
+            break;
+        }else if(strcmp(table[cur].addr,addr) == 0){
+            return table[cur].list_node;
         }
+        cur = (cur+1) % capacity;
     }
     return NULL;
+}
+
+int Memory::hash(char *addr){
+    int sum=0;
+    for(int i=0;i<5;i++){
+        sum += addr[i];
+    }
+    return sum % capacity;
 }
 
 void Memory::update_list(struct List_node *recent_use){
@@ -115,26 +116,24 @@ void Memory::update_list(struct List_node *recent_use){
     }
 }
 
-void Memory::new_frame(char *addr,struct Tree_node *parent){
+void Memory::new_frame(char *addr){
     if(filled == capacity){
         delete_frame();
     }
-    struct Tree_node *new_T;
-    struct List_node *new_L;
-    new_T = new struct Tree_node(addr);
-    new_L = new struct List_node();
-    if(parent == NULL){
-        root = new_T;
-    }else{
-        if(strcmp(addr,parent->addr) < 0){
-            parent->Lchild = new_T;
-        }else{
-            parent->Rchild = new_T;
-        }
+    int key = hash(addr);
+    int cur=key;
+    if(table[cur].list_node != NULL){
+        do{
+            cur = (cur+1) % capacity;
+            if(table[cur].list_node == NULL){
+                break;
+            }
+        }while(cur != key);
     }
-    new_T->parent = parent;
-    new_T->list_node = new_L;
-    new_L->tree_node = new_T;
+    struct List_node *new_L = new List_node;
+    table[cur].list_node = new_L;
+    table[cur].addr = addr;
+    new_L->tree_node = &table[cur];
     if(head == NULL && tail == NULL){
         head = new_L;
         tail = new_L;
@@ -147,62 +146,11 @@ void Memory::new_frame(char *addr,struct Tree_node *parent){
 }
 
 void Memory::delete_frame(){
-    struct Tree_node *t_node = tail->tree_node;
-    struct Tree_node *replace_node=NULL;
+    struct node *t_node = tail->tree_node;
     struct List_node *new_tail = tail->prev;
+    t_node->list_node = NULL;
+    delete [] t_node->addr;
     delete tail;
-    if(t_node->Lchild){
-        replace_node = t_node->Lchild;
-        while(replace_node->Rchild != NULL){
-            replace_node = replace_node->Rchild;
-        }
-        if(replace_node->Lchild){
-            replace_node->Lchild->parent = replace_node->parent;
-        }
-        if(!replace_node->parent){
-
-        }else if(replace_node->parent->Lchild == replace_node){
-            replace_node->parent->Lchild = replace_node->Lchild;
-        }else{
-            replace_node->parent->Rchild = replace_node->Lchild;
-        }
-    }else if(t_node->Rchild){
-        replace_node = t_node->Rchild;
-        while(replace_node->Lchild != NULL){
-            replace_node = replace_node->Lchild;
-        }
-        if(replace_node->Rchild){
-            replace_node->Rchild->parent = replace_node->parent;
-        }
-        if(!replace_node->parent){
-            
-        }else if(replace_node->parent->Lchild == replace_node){
-            replace_node->parent->Lchild = replace_node->Rchild;
-        }else{
-            replace_node->parent->Rchild = replace_node->Rchild;
-        }
-    }else{
-//        if(!t_node->parent){
-
-//        }else if(t_node->parent->Lchild == t_node){
-//            t_node->parent->Lchild = NULL;
-//        }else{
-//            t_node->parent->Rchild = NULL;
-//        }
-    }
-    if(!t_node->parent){
-
-    }else if(t_node->parent->Lchild == t_node){
-        t_node->parent->Lchild = replace_node;
-    }else if(t_node->parent->Rchild == t_node){
-        t_node->parent->Rchild = replace_node;
-    }else{
-//        cout <<"ERROR parent not point to child"<<endl;
-//        cout << "QQQQQ" << (t_node->parent != NULL) <<endl;
-    }
-
-    free(t_node->addr);
-    delete t_node;
     if(!new_tail){ //empty
         head = NULL;
     }
@@ -218,21 +166,15 @@ int main(){
     fstream fp("trace.txt",ios::in);    
     int hit_count,miss_count;
     hit_count = miss_count = 0;
-    mem.set_policy(FIFO);
+    mem.set_policy(LRU);
     mem.set_capacity(64);
     
-    while(!fp.eof()){
-        fp >> type >> addr; 
-//        cout << hit_count << " "<<miss_count <<endl;
-//        cout << type <<" "<<  addr.substr(0,5) << endl;
+    while(fp >> type >> addr){
         if(mem.use(strndup(addr,5))){
             hit_count++;
-//            cout << "Hit "<<addr.substr(0,5)<<endl;
         }else{
             miss_count++;
-//            cout << "Miss "<<addr.substr(0,5)<<endl;
         }
-//        cout <<endl;
     }
     cout << "total hit"<<hit_count<<endl;
     cout << "total miss"<<miss_count <<endl;

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 #include <cstdlib>
 #include <cstring>
 
@@ -106,6 +107,7 @@ void Memory::update_list(struct List_node *recent_use){
             }else{      //recent use is tail
                 tail = recent_use->prev;
             }
+            head->prev = recent_use;
             recent_use->prev = NULL;
             recent_use->next = head;
             head = recent_use;
@@ -149,36 +151,61 @@ void Memory::delete_frame(){
     struct node *t_node = tail->tree_node;
     struct List_node *new_tail = tail->prev;
     t_node->list_node = NULL;
-    delete [] t_node->addr;
+    free(t_node->addr);
     delete tail;
     if(!new_tail){ //empty
         head = NULL;
+    }else{
+        new_tail->next = NULL;
     }
     tail = new_tail;
     filled--;
 }
 
 int main(){
-    Memory mem;
     char type,comma;
     char addr[20];
     int size;
-    fstream fp("trace.txt",ios::in);    
-    int hit_count,miss_count;
-    hit_count = miss_count = 0;
-    mem.set_policy(LRU);
-    mem.set_capacity(64);
+    cout << "FIFO---"<<endl;
+    cout <<setw(4) <<"size"<<setw(10)<< "miss" << setw(10) <<"hit" <<setw(30) <<"page fault ratio"<<endl;
+    for(int size=64;size<=512;size *= 2){
+        fstream fp("trace.txt",ios::in);    
+        Memory mem;
+        int hit_count,miss_count;
+        hit_count = miss_count = 0;
+        mem.set_policy(FIFO);
+        mem.set_capacity(size);
     
-    while(fp >> type >> addr){
-        if(mem.use(strndup(addr,5))){
-            hit_count++;
-        }else{
-            miss_count++;
+        while(fp >> type >> addr){
+            if(mem.use(strndup(addr,5))){
+                hit_count++;
+            }else{
+                miss_count++;
+            }
         }
+        cout << setw(4) <<size<<setw(10)<< miss_count << setw(10) <<hit_count <<setw(30) << (double)(miss_count)/(miss_count+hit_count)<<endl;
+        fp.close();
     }
-    cout << "total hit"<<hit_count<<endl;
-    cout << "total miss"<<miss_count <<endl;
-    fp.close();
+    cout << "LRU---"<<endl;
+    cout <<setw(4) <<"size"<<setw(10)<< "miss" << setw(10) <<"hit" <<setw(30) <<"page fault ratio"<<endl;
+    for(int size=64;size<=512;size *= 2){
+        fstream fp("trace.txt",ios::in);    
+        Memory mem;
+        int hit_count,miss_count;
+        hit_count = miss_count = 0;
+        mem.set_policy(LRU);
+        mem.set_capacity(size);
+    
+        while(fp >> type >> addr){
+            if(mem.use(strndup(addr,5))){
+                hit_count++;
+            }else{
+                miss_count++;
+            }
+        }
+        cout << setw(4) <<size<<setw(10)<< miss_count << setw(10) <<hit_count <<setw(30) << (double)(miss_count)/(miss_count+hit_count)<<endl;
+        fp.close();
+    }
     return 0;
 }
 
